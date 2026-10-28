@@ -1,0 +1,20 @@
+{
+  "name": "quiz-pane",
+  "version": "0.1.0",
+  "description": "Flash-card quiz in a side pane while Claude works; question sets with cited sources, fetched from GitHub",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "source": {
+      "type": "string",
+      "title": "Quiz-set source",
+      "description": "Base URL (or local folder) holding index.json and the set files",
+      "default": "https://raw.githubusercontent.com/sohosteve/quiz-sets/main"
+    },
+    "autoOpen": {
+      "type": "boolean",
+      "title": "Open while Claude works",
+      "description": "Open the quiz pane when a turn starts (docks only on wide terminals)",
+      "default": true
+    }
+  }
+}

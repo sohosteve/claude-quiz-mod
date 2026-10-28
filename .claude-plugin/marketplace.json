@@ -1,0 +1,5 @@
+{
+  "name": "claude-quiz-mod",
+  "owner": { "name": "SoHo Integration" },
+  "plugins": [{ "name": "quiz-pane", "source": "./" }]
+}
