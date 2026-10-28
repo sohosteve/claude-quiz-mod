@@ -48,6 +48,10 @@ export type Activity = {
   now: number
   tool: string | null
   agents: number
+  // When the wait ended (Claude idle, no agent running); 0 while it lasts.
+  idleAt: number
+  // The pane was offered once this wait, so a narrow terminal is told once.
+  isOffered: boolean
 }
 
 export type Screen =
@@ -66,6 +70,8 @@ declare module 'claude-code' {
       card: Card | null
       counter: number
       dismissed: boolean
+      autoOpened: boolean
+      hinted: boolean
       loadToken: number
     }
   }

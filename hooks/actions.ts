@@ -6,8 +6,17 @@ import type { Activity, Card, QuizSet, Score, Screen, SetInfo } from '../types'
 import { loadIndex, loadScore, loadSet, saveScore } from './bank'
 import { EMPTY_SCORE, nextCard, scoreAnswer } from './quiz'
 
+export const PANE = 'quiz'
+export const TITLE = 'Quiz'
+
 // A ticker left running past this (a turn whose completion never arrived) stops itself.
 const MAX_BUSY_MS = 6 * 60 * 60 * 1000
+// How long a wait must last before the pane opens unasked, so quick replies never flash it.
+const OPEN_AFTER_MS = 10 * 1000
+// How long an auto-opened pane stays once the wait ends, so a turn that hands
+// straight on to a background agent does not close and reopen it.
+const CLOSE_AFTER_MS = 3 * 1000
+const NARROW_HINT = 'Claude is working. /quiz to study while you wait'
 
 export const activity = atom({ plugin: 'quiz-pane', key: 'activity' } as const, {
   isBusy: false,
@@ -15,6 +24,8 @@ export const activity = atom({ plugin: 'quiz-pane', key: 'activity' } as const, 
   now: 0,
   tool: null,
   agents: 0,
+  idleAt: 0,
+  isOffered: false,
 } as Activity)
 export const screen = atom({ plugin: 'quiz-pane', key: 'screen' } as const, { kind: 'menu', error: null } as Screen)
 export const sets = atom({ plugin: 'quiz-pane', key: 'sets' } as const, [] as SetInfo[])
@@ -23,6 +34,10 @@ export const score = atom({ plugin: 'quiz-pane', key: 'score' } as const, EMPTY_
 export const card = atom({ plugin: 'quiz-pane', key: 'card' } as const, null as Card | null)
 export const counter = atom({ plugin: 'quiz-pane', key: 'counter' } as const, 0)
 export const dismissed = atom({ plugin: 'quiz-pane', key: 'dismissed' } as const, false)
+// The pane on screen is one this plugin opened unasked, so it is this plugin's to close.
+export const autoOpened = atom({ plugin: 'quiz-pane', key: 'autoOpened' } as const, false)
+// The narrow-terminal toast was shown this session.
+export const hinted = atom({ plugin: 'quiz-pane', key: 'hinted' } as const, false)
 export const loadToken = atom({ plugin: 'quiz-pane', key: 'loadToken' } as const, 0)
 
 const toMenu = (error: string | null): Screen => ({ kind: 'menu', error })
@@ -102,25 +117,68 @@ export async function runningAgents($: EngineInterface): Promise<number> {
   return (await $.agent.list()).filter(a => a.status === 'running' || a.status === 'pending').length
 }
 
-// Resolves false once the ticker should stop: Claude is idle, or the turn has
-// outlived MAX_BUSY_MS. Writes only when the shown second or agent count moved.
-export async function tick($: EngineInterface): Promise<boolean> {
-  const before = await read($, activity)
-  if (!before.isBusy) return false
+// One beat of the wait ticker. Claude is waited on while its turn runs or any
+// agent it started is still running. Resolves false once the ticker should stop:
+// the wait is over and no auto-opened pane is left to close.
+export async function tick($: EngineInterface, isAutoOpen: boolean): Promise<boolean> {
   const now = await $.clock.now()
-  if (now - before.startedAt > MAX_BUSY_MS) {
-    await update($, activity, a => ({ ...a, isBusy: false, tool: null }))
+  const agents = await runningAgents($)
+  // Derived inside the updater from the value it is handed, so a turn that
+  // started or ended while this beat awaited is never written over. A wait
+  // past MAX_BUSY_MS (a lost completion, an agent stuck pending) ends itself.
+  const after = await update($, activity, a => {
+    const isFresh = now - a.startedAt <= MAX_BUSY_MS
+    const isBusy = a.isBusy && isFresh
+    const isWaiting = isBusy || (agents > 0 && isFresh)
+    const idleAt = isWaiting ? 0 : a.idleAt || now
+    const isSameSecond = Math.floor(now / 1000) === Math.floor(a.now / 1000)
+    const isSame = isSameSecond && agents === a.agents && isBusy === a.isBusy && idleAt === a.idleAt
+    return isSame ? a : { ...a, now, agents, isBusy, idleAt, tool: isBusy ? a.tool : null }
+  })
+  if (after.idleAt === 0) {
+    if (isAutoOpen && now - after.startedAt >= OPEN_AFTER_MS) await offerPane($)
+    return true
+  }
+  $.ui.status(undefined)
+  return retirePane($, now - after.idleAt)
+}
+
+// Opens the pane unasked, once per wait, unless the person closed it or has it open.
+async function offerPane($: EngineInterface): Promise<void> {
+  if ((await read($, activity)).isOffered) return
+  await update($, activity, a => ({ ...a, isOffered: true }))
+  if (await read($, dismissed)) return
+  if ((await $.ui.panes()).some(p => p.id === PANE)) return
+  await update($, autoOpened, () => true)
+  const opened = await $.ui.open({ id: PANE, title: TITLE })
+  if (opened.isPlaced) return
+  $.ui.status(NARROW_HINT)
+  if (await read($, hinted)) return
+  await update($, hinted, () => true)
+  $.ui.toast(`${NARROW_HINT} (the pane opens on its own from 110 columns once you have used /quiz)`, { timeoutMs: 8000 })
+}
+
+// Closes the pane this plugin opened, once the wait has been over for
+// CLOSE_AFTER_MS and the person is not using it. Resolves whether to keep ticking.
+async function retirePane($: EngineInterface, idleForMs: number): Promise<boolean> {
+  if (!(await read($, autoOpened))) return false
+  const pane = (await $.ui.panes()).find(p => p.id === PANE)
+  if (!pane) {
+    await update($, autoOpened, () => false)
     return false
   }
-  const agents = await runningAgents($)
-  const isSameSecond = Math.floor(now / 1000) === Math.floor(before.now / 1000)
-  if (!isSameSecond || agents !== before.agents) await update($, activity, a => ({ ...a, now, agents }))
-  return true
+  if (pane.isFocused || idleForMs < CLOSE_AFTER_MS) return true
+  await $.ui.close({ id: PANE })
+  await update($, autoOpened, () => false)
+  return false
 }
 
 export async function markBusy($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
-  await update($, activity, a => ({ ...a, isBusy: true, startedAt: now, now, tool: null }))
+  await update($, activity, a => {
+    const isNewWait = !a.isBusy && a.idleAt !== 0
+    return { ...a, isBusy: true, startedAt: now, now, tool: null, idleAt: 0, isOffered: isNewWait ? false : a.isOffered }
+  })
 }
 
 export async function markTool($: EngineInterface, tool: string): Promise<void> {
@@ -131,16 +189,18 @@ export async function markTool($: EngineInterface, tool: string): Promise<void> 
 export async function markIdle($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
   const agents = await runningAgents($)
-  await update($, activity, a => ({ ...a, isBusy: false, now, tool: null, agents }))
+  await update($, activity, a => ({ ...a, isBusy: false, now, tool: null, agents, idleAt: agents > 0 ? 0 : now }))
 }
 
-// Set when the person closes the pane, so it stops reopening on each turn; /quiz clears it.
+// The person took the pane over (opened it with /quiz, or closed it by hand):
+// it is no longer this plugin's to close.
+export async function releasePane($: EngineInterface): Promise<void> {
+  await update($, autoOpened, () => false)
+}
+
+// Set when the person closes the pane, so it stops reopening on each wait; /quiz clears it.
 export async function setDismissed($: EngineInterface, value: boolean): Promise<void> {
   await update($, dismissed, () => value)
-}
-
-export async function isDismissed($: EngineInterface): Promise<boolean> {
-  return read($, dismissed)
 }
 
 export async function readView($: EngineInterface) {

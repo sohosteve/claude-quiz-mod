@@ -21,14 +21,24 @@ export function drawPane($: EngineInterface, e: RenderInput<'Pane'>, view: View,
   const { Box, Text, Button, Link } = $.ui.resolve(e)
   const { activity, screen } = view
 
-  const header = activity.isBusy ? (
+  const agents = activity.agents > 0 ? `${activity.agents} agent${activity.agents === 1 ? '' : 's'}` : ''
+  const status = activity.isBusy ? (
     <Text color="yellow">
       ● Claude is working {elapsed(activity.now - activity.startedAt)}
       {activity.tool ? ` · ${activity.tool}` : ''}
-      {activity.agents > 0 ? ` · ${activity.agents} agent${activity.agents === 1 ? '' : 's'}` : ''}
+      {agents ? ` · ${agents}` : ''}
     </Text>
+  ) : agents ? (
+    <Text color="yellow">◐ Waiting on {agents}</Text>
   ) : (
     <Text color="green">✓ Claude is idle: your turn</Text>
+  )
+  // An auto-opened pane does not take the keyboard, so typing stays in the prompt.
+  const header = (
+    <Box flexDirection="column">
+      {status}
+      {!e.props.isFocused && <Text dimColor>ctrl+x tab to answer · ctrl+x x to close</Text>}
+    </Box>
   )
 
   const menu = () => (

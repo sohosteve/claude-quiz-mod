@@ -5,7 +5,11 @@ beside the transcript: flash cards with 5 choices, an explanation and cited sour
 answer. The pane's header shows Claude's live state (working time, current tool, running agents),
 and the transcript stays fully visible, so you never lose sight of the task.
 
-- `/quiz` opens the pane; `/quiz <set-slug>` jumps straight into a set.
+- The pane opens on its own once Claude has been busy for 10 seconds (a long turn, or agents still
+  running after it) and closes itself 3 seconds after the wait ends. Quick replies never open it. It
+  does not take the keyboard: press `ctrl+x tab` to answer, `ctrl+x x` to close it for the session.
+- `/quiz` opens the pane; `/quiz <set-slug>` jumps straight into a set. A pane you opened yourself
+  is never closed for you.
 - Keys inside the pane: `1`-`5` answer, `n` next card, `m` back to the sets list, `r` refresh sets.
 - Score, streak and missed questions persist per set. Every third card replays a question you missed until you get it right.
 - Sets come from [sohosteve/quiz-sets](https://github.com/sohosteve/quiz-sets) and are cached, so play works offline.
@@ -33,7 +37,7 @@ This repository is private: installing needs read access on GitHub and a git cre
 | Option | Default | What it does |
 | --- | --- | --- |
 | `source` | `https://raw.githubusercontent.com/sohosteve/quiz-sets/main` | Base URL or a local folder holding `index.json` and `sets/` |
-| `autoOpen` | `true` | Open the pane when a turn starts. It docks unasked only on terminals 144+ columns wide; narrower, the status line says `/quiz` instead |
+| `autoOpen` | `true` | Open the pane during long waits. Claude Code seats an unasked pane only from 144 columns, or 110 once you have opened it with `/quiz`; narrower, you get a toast and a status-line hint instead |
 
 ## Adding question sets
 

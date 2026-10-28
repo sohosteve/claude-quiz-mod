@@ -93,3 +93,14 @@ test('a non-https remote source is refused', { options: { source: 'http://exampl
   await ui.press({ key: 'refresh' })
   expect(await ui.find({ text: /https URL/ })).toBeDefined()
 })
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  for (const isFocused of [false, true]) {
+    test(`the ctrl+x tab hint shows only while the pane lacks the keyboard (${surface}, focused ${isFocused})`, async ($, on) => {
+      mock.store(on, {})
+      const ui = await $.ui.mount({ ...PANE, surface, props: { ...PANE.props, isFocused } as never })
+      const hint = await ui.find({ text: /ctrl\+x tab to answer/ })
+      expect(hint === undefined).toBe(isFocused)
+    })
+  }
+}
