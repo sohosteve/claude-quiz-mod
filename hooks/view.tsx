@@ -15,8 +15,6 @@ export type View = {
   card: Card | null
 }
 
-const LETTERS = ['A', 'B', 'C', 'D', 'E']
-
 export function drawPane($: EngineInterface, e: RenderInput<'Pane'>, view: View, source: string) {
   const { Box, Text, Button, Link } = $.ui.resolve(e)
   const { activity, screen } = view
@@ -75,11 +73,11 @@ export function drawPane($: EngineInterface, e: RenderInput<'Pane'>, view: View,
         </Box>
         <Box flexDirection="column" marginTop={1}>
           {current.order.slice(0, CHOICES).map((choice, slot) => {
-            const label = `${LETTERS[slot]}. ${q.choices[choice]}`
+            // The hotkey already draws "1:", so the label is just the choice text.
             if (!isAnswered) {
               return (
                 <Button key={`choice-${slot}`} plain hotkey={String(slot + 1)} onPress={() => pick($, q.id, choice)}>
-                  {label}
+                  {q.choices[choice]}
                 </Button>
               )
             }
@@ -88,7 +86,7 @@ export function drawPane($: EngineInterface, e: RenderInput<'Pane'>, view: View,
             return (
               <Text key={`choice-${slot}`} color={isAnswer ? 'green' : isPicked ? 'red' : undefined} dimColor={!isAnswer && !isPicked}>
                 {isAnswer ? '✓ ' : isPicked ? '✗ ' : '  '}
-                {label}
+                {`${slot + 1}: ${q.choices[choice]}`}
               </Text>
             )
           })}
