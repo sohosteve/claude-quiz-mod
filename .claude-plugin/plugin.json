@@ -1,6 +1,6 @@
 {
   "name": "quiz-pane",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Flash-card quiz in a side pane while Claude works; question sets with cited sources, fetched from GitHub",
   "types": "./types/index.d.ts",
   "userConfig": {
