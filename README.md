@@ -14,6 +14,9 @@ and the transcript stays fully visible, so you never lose sight of the task.
 - Score, streak and missed questions persist per set. Every third card replays a question you missed until you get it right.
 - Sets come from [sohosteve/quiz-sets](https://github.com/sohosteve/quiz-sets) and are cached, so play works offline.
 
+<img width="2578" height="1058" alt="image" src="https://github.com/user-attachments/assets/2be6af01-f177-4c4b-b8ff-97067eeea92f" />
+
+
 ## Install
 
 At the prompt of a terminal Claude Code session:
